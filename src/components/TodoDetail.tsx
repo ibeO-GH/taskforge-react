@@ -1,0 +1,79 @@
+import { useParams, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { db } from "../db/todoDb";
+import { Button } from "./ui/button";
+import type { Todo } from "../types/todo"; // 👈 adjust this import path if your Todo interface is elsewhere
+
+// Strongly typed fetcher
+const fetchTodo = async (id: string): Promise<Todo> => {
+  const todo = await db.todos.get(Number(id));
+  if (!todo) throw new Error("Todo not found");
+  return todo;
+};
+
+export default function TodoDetail() {
+  const { id } = useParams({ from: "/todos/$id" }) as { id: string };
+
+  const { data, isLoading, isError } = useQuery<Todo>({
+    queryKey: ["todo", id],
+    queryFn: () => fetchTodo(id),
+  });
+
+  if (isLoading) {
+    return (
+      <p className="text-gray-400 text-center mt-12 animate-pulse">
+        Loading todo...
+      </p>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <p className="text-red-500 text-center mt-12 font-semibold">
+        🚫 Error loading todo details. Please try again.
+      </p>
+    );
+  }
+
+  return (
+    <div className="bg-[#1f2937] border border-gray-700 rounded-xl p-6 max-w-2xl mx-auto shadow-xl transition-all space-y-6">
+      <div className="space-y-2">
+        <h2 className="text-2xl font-bold text-blue-100">📝 Todo Details</h2>
+        <p className="text-sm text-gray-400">ID: {data.id}</p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-400 mb-1">Title</h3>
+          <p className="text-lg text-blue-200 font-medium bg-gray-800 px-3 py-2 rounded-md border border-gray-600">
+            {data.title}
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-gray-400 mb-1">Status</h3>
+          <p
+            className={`inline-block px-4 py-2 text-sm font-semibold rounded-full border ${
+              data.completed
+                ? "bg-green-800 text-green-300 border-green-500"
+                : "bg-red-800 text-red-300 border-red-500"
+            }`}
+          >
+            {data.completed ? "✅ Completed" : "❌ Incomplete"}
+          </p>
+        </div>
+      </div>
+
+      <div className="pt-4">
+        <Link to="/">
+          <Button
+            size="sm"
+            className="gap-1 bg-gray-600 hover:bg-gray-700 text-white"
+          >
+            ← Back to List
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
