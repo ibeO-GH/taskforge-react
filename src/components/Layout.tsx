@@ -9,7 +9,7 @@ export default function Layout() {
             to="/"
             className="text-3xl font-bold text-white tracking-wide hover:opacity-90 transition text-center"
           >
-            📝 MyTodo
+            📝 TaskForge
           </Link>
         </div>
       </header>
