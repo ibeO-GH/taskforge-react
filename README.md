@@ -1,15 +1,7 @@
-# 📝 Todo App (React + TypeScript + Tailwind v4)
+# 📝 TaskForge - React implementation
 
-A fast, modern, and responsive **Todo List** application built with **React (TypeScript)**, **Vite**, **Tailwind CSS v4**, and **shadcn/ui**, featuring offline persistence via **Dexie.js (IndexedDB)**.  
+A fast, modern, and responsive **TaskForge System** application built with **React (TypeScript)**, **Vite**, **Tailwind CSS v4**, and **shadcn/ui**, featuring offline persistence via **Dexie.js (IndexedDB)**.  
 The app supports searching, filtering, editing, deleting, and pagination — all within a clean, accessible UI.
-
-> **Note:** This is the **TypeScript version** of the Todo App.
->
-> - **Current Branch (`typescript-version`)** → Built with **React + TypeScript + Tailwind CSS v4 + shadcn/ui**
-> - **Main Branch (`main`)** → Original **JavaScript version**
->
-> You can explore the JavaScript version here:  
-> [View Main Branch](https://github.com/ibeO-GH/Todo-app-react/tree/main)
 
 ---
 
@@ -31,8 +23,8 @@ The app supports searching, filtering, editing, deleting, and pagination — all
 
 ### 1. Clone the Repository
 
-git clone https://github.com/ibeO-GH/Todo-app-react.git
-cd todo-app-react
+git clone https://github.com/ibeO-GH/taskforge-react.git
+cd taskforge-react
 
 ### 2. Install Dependencies
 
@@ -181,26 +173,20 @@ src/
 
 ### Hosted on Vercel
 
-https://todo-app-react-yrta.vercel.app/
-
-### Demo Video
-
-[Watch on YouTube](https://youtu.be/SfV57b3TCrQ)
-
 ---
 
 ## Acknowledgments
 
-Special thanks to:
+shadcn/ui, React Query, Dexie.js, Tailwind CSS, Radix UI
 
-- shadcn/ui
+---
 
-- React Query
+## 🌐 Part of TaskForge Ecosystem
 
-- Dexie.js
+This project is part of the **TaskForge** system.
 
-- Tailwind CSS
+Explore other implementations:
 
-- Radix UI
-
-## Hosted Link -
+- Core → https://github.com/ibeO-GH/taskforge
+- Next.js → https://github.com/ibeO-GH/taskforge-next
+- Vue → https://github.com/ibeO-GH/taskforge-vue
