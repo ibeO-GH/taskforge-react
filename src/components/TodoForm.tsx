@@ -5,7 +5,7 @@ import { Todo } from "../types/todo";
 
 type TodoFormProps = {
   initialTodo?: Partial<Todo>;
-  onSubmit: (todo: Omit<Todo, "id">) => void;
+  onSubmit: (todo: Partial<Omit<Todo, "id">>) => void;
   onCancel: () => void;
 };
 
@@ -15,15 +15,23 @@ export default function TodoForm({
   onCancel,
 }: TodoFormProps) {
   const [title, setTitle] = useState(initialTodo.title || "");
-  const [completed, setCompleted] = useState<boolean>(
-    initialTodo.completed || false
+  const [status, setStatus] = useState<"todo" | "in-progress" | "done">(
+    initialTodo.status || "todo",
+  );
+
+  const [priority, setPriority] = useState<"low" | "medium" | "high">(
+    initialTodo.priority || "medium",
   );
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ title, completed, userId: initialTodo.userId ?? 1 });
+        onSubmit({
+          title,
+          status,
+          priority,
+        });
       }}
       className="space-y-4 p-6 bg-gray-900 rounded-lg border border-gray-700 shadow-md"
     >
@@ -41,17 +49,35 @@ export default function TodoForm({
       </div>
 
       <div>
-        <label className="flex items-center space-x-3 text-gray-300">
-          <input
-            type="checkbox"
-            checked={completed}
-            onChange={(e) =>
-              setCompleted((e.target as HTMLInputElement).checked)
-            }
-            className="form-checkbox h-5 w-5 text-blue-500 bg-gray-800 border-gray-700 rounded focus:ring-blue-500"
-          />
-          <span>Completed</span>
+        <label className="block font-semibold text-gray-300 mb-1">Status</label>
+        <select
+          value={status}
+          onChange={(e) =>
+            setStatus(e.target.value as "todo" | "in-progress" | "done")
+          }
+          className="w-full bg-gray-800 border border-gray-700 rounded-md p-3 text-gray-200"
+        >
+          <option value="todo">Todo</option>
+          <option value="in-progress">In Progress</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block font-semibold text-gray-300 mb-1">
+          Priority
         </label>
+        <select
+          value={priority}
+          onChange={(e) =>
+            setPriority(e.target.value as "low" | "medium" | "high")
+          }
+          className="w-full bg-gray-800 border border-gray-700 rounded-md p-3 text-gray-200"
+        >
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
       </div>
 
       <div className="flex space-x-3 justify-end">

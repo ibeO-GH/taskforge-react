@@ -6,8 +6,8 @@ export class TodoDexieDB extends Dexie {
 
   constructor() {
     super("TodoDatabase");
-    this.version(1).stores({
-      todos: "++id,title,completed",
+    this.version(2).stores({
+      todos: "++id,title,completed,status,priority,dueDate,createdAt",
     });
   }
 }

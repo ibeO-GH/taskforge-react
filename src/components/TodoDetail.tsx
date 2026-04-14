@@ -35,6 +35,8 @@ export default function TodoDetail() {
     );
   }
 
+  const status = data.status ?? (data.completed ? "done" : "todo");
+
   return (
     <div className="bg-[#1f2937] border border-gray-700 rounded-xl p-6 max-w-2xl mx-auto shadow-xl transition-all space-y-6">
       <div className="space-y-2">
@@ -54,12 +56,14 @@ export default function TodoDetail() {
           <h3 className="text-sm font-semibold text-gray-400 mb-1">Status</h3>
           <p
             className={`inline-block px-4 py-2 text-sm font-semibold rounded-full border ${
-              data.completed
+              status === "done"
                 ? "bg-green-800 text-green-300 border-green-500"
-                : "bg-red-800 text-red-300 border-red-500"
+                : status === "in-progress"
+                  ? "bg-yellow-800 text-yellow-300 border-yellow-500"
+                  : "bg-blue-800 text-blue-300 border-blue-500"
             }`}
           >
-            {data.completed ? "✅ Completed" : "❌ Incomplete"}
+            {status}
           </p>
         </div>
       </div>

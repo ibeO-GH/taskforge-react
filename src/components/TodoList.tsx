@@ -13,7 +13,14 @@ import {
   SelectItem,
 } from "./ui/select";
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
-import type { Todo } from "../types/todo"; // ✅ Import your Todo type
+import type { Todo } from "../types/todo";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import SortableItem from "./SortableItem";
 
 export default function TodoList(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -22,12 +29,15 @@ export default function TodoList(): React.JSX.Element {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "completed" | "incomplete"
+    "all" | "todo" | "in-progress" | "done"
+  >("all");
+  const [priorityFilter, setPriorityFilter] = useState<
+    "all" | "low" | "medium" | "high"
   >("all");
   const [showCreate, setShowCreate] = useState<boolean>(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmTodoId, setDeleteConfirmTodoId] = useState<number | null>(
-    null
+    null,
   );
 
   // ✅ Query for todos
@@ -42,15 +52,21 @@ export default function TodoList(): React.JSX.Element {
 
       if (count === 0) {
         const response = await fetch(
-          "https://jsonplaceholder.typicode.com/todos?_limit=30"
+          "https://jsonplaceholder.typicode.com/todos?_limit=30",
         );
         const todosFromApi: Todo[] = await response.json();
 
-        const todosToAdd = todosFromApi.map(({ id, title, completed }) => ({
-          id,
-          title,
-          completed,
-        }));
+        const todosToAdd: Todo[] = todosFromApi.map(
+          ({ id, title, completed }, index) => ({
+            id,
+            title,
+            completed,
+            status: completed ? "done" : "todo",
+            priority: "low",
+            createdAt: new Date().toISOString(),
+            order: index,
+          }),
+        );
 
         await db.todos.bulkAdd(todosToAdd);
       }
@@ -62,9 +78,22 @@ export default function TodoList(): React.JSX.Element {
 
   // ✅ Create Todo
   const createTodo = useMutation({
-    mutationFn: async (newTodo: Omit<Todo, "id">) => {
+    mutationFn: async (newTodo: Partial<Omit<Todo, "id">>) => {
       const id = Date.now();
-      const todo: Todo = { ...newTodo, id };
+
+      const todo: Todo = {
+        id,
+        title: newTodo.title || "",
+        completed: newTodo.completed ?? false,
+        status: newTodo.status ?? "todo",
+        priority: newTodo.priority ?? "medium",
+        createdAt: new Date().toISOString(),
+        order: -Date.now(),
+
+        description: newTodo.description,
+        dueDate: newTodo.dueDate,
+      };
+
       await db.todos.put(todo);
       return todo;
     },
@@ -106,21 +135,97 @@ export default function TodoList(): React.JSX.Element {
     const matchesSearch = todo.title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all"
-        ? true
-        : statusFilter === "completed"
-        ? todo.completed
-        : !todo.completed;
 
-    return matchesSearch && matchesStatus;
+    const status = todo.status ?? (todo.completed ? "done" : "todo");
+
+    const matchesStatus =
+      statusFilter === "all" ? true : status === statusFilter;
+
+    const priority = todo.priority ?? "low";
+
+    const matchesPriority =
+      priorityFilter === "all" ? true : priority === priorityFilter;
+
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  const totalTasks = filteredTodos.length;
+
+  const doneTasks = filteredTodos.filter((todo) => {
+    const status = todo.status ?? (todo.completed ? "done" : "todo");
+    return status === "done";
+  }).length;
+
+  const inProgressTasks = filteredTodos.filter((todo) => {
+    const status = todo.status ?? (todo.completed ? "done" : "todo");
+    return status === "in-progress";
+  }).length;
+
+  const highPriorityTasks = filteredTodos.filter((todo) => {
+    const priority = todo.priority ?? "low";
+    return priority === "high";
+  }).length;
+
+  const [sortBy, setSortBy] = useState<
+    "manual" | "newest" | "oldest" | "priority"
+  >("manual");
+
   const totalPages = Math.ceil(filteredTodos.length / todosPerPage);
-  const paginatedTodos = filteredTodos.slice(
+
+  const sortedTodos = [...filteredTodos].sort((a, b) => {
+    if (sortBy === "manual") {
+      return (a.order ?? 0) - (b.order ?? 0);
+    }
+
+    if (sortBy === "newest") {
+      return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+    }
+
+    if (sortBy === "oldest") {
+      return (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
+    }
+
+    if (sortBy === "priority") {
+      const orderMap = { high: 3, medium: 2, low: 1 };
+      return (
+        (orderMap[b.priority ?? "low"] || 0) -
+        (orderMap[a.priority ?? "low"] || 0)
+      );
+    }
+    return 0;
+  });
+  const paginatedTodos = sortedTodos.slice(
     (currentPage - 1) * todosPerPage,
-    currentPage * todosPerPage
+    currentPage * todosPerPage,
   );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (sortBy !== "manual") return;
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = paginatedTodos.findIndex((t) => t.id === active.id);
+    const newIndex = paginatedTodos.findIndex((t) => t.id === over.id);
+
+    const newPageOrder = arrayMove(paginatedTodos, oldIndex, newIndex);
+
+    const updatedTodos = [...sortedTodos];
+
+    newPageOrder.forEach((todo, index) => {
+      const globalIndex = sortedTodos.findIndex((t) => t.id === todo.id);
+      updatedTodos[globalIndex] = {
+        ...todo,
+        order: (currentPage - 1) * todosPerPage + index,
+      };
+    });
+
+    updatedTodos.forEach((todo) => {
+      db.todos.update(todo.id, { order: todo.order });
+    });
+
+    queryClient.invalidateQueries({ queryKey: ["todos"] });
+  };
 
   // ✅ Loading / Error states
   if (isLoading)
@@ -136,9 +241,27 @@ export default function TodoList(): React.JSX.Element {
   // ✅ Main Component UI
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto bg-gray-700 min-h-screen rounded-lg shadow-lg border border-gray-600">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gray-800 p-4 rounded-lg text-center border border-gray-700">
+          <p className="text-sm text-gray-400">Total</p>
+          <p className="text-xl font-bold text-white">{totalTasks}</p>
+        </div>
+        <div className="bg-green-900/40 p-4 rounded-lg text-center border border-green-700">
+          <p className="text-sm text-green-300">Done</p>
+          <p className="text-xl font-bold text-green-400">{doneTasks}</p>
+        </div>
+        <div className="bg-yellow-900/40 p-4 rounded-lg text-center border border-yellow-700">
+          <p className="text-sm text-yellow-300">In Progress</p>
+          <p className="text-xl font-bold text-yellow-400">{inProgressTasks}</p>
+        </div>
+        <div className="bg-red-900/40 p-4 rounded-lg text-center border border-red-700">
+          <p className="text-sm text-red-300">High Priority</p>
+          <p className="text-xl font-bold text-red-400">{highPriorityTasks}</p>
+        </div>
+      </div>
       {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4 w-full">
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
           <Input
             type="text"
             placeholder="Search todos..."
@@ -152,22 +275,58 @@ export default function TodoList(): React.JSX.Element {
 
           <Select
             value={statusFilter}
-            onValueChange={(val: "all" | "completed" | "incomplete") => {
+            onValueChange={(val: "all" | "todo" | "in-progress" | "done") => {
               setStatusFilter(val);
               setCurrentPage(1);
             }}
           >
             <SelectTrigger className="w-full sm:w-40 bg-white text-gray-800">
-              <SelectValue placeholder="Filter" />
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="incomplete">Incomplete</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="todo">Todo</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="done">Done</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={priorityFilter}
+            onValueChange={(val: "all" | "low" | "medium" | "high") => {
+              setPriorityFilter(val);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-40 bg-white text-gray-800">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priorities</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={sortBy}
+            onValueChange={(val: "newest" | "oldest" | "priority") => {
+              setSortBy(val);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-40 bg-white text-gray-800">
+              <SelectValue placeholder="sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Manual (Drag)</SelectItem>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="priority">Priority</SelectItem>
             </SelectContent>
           </Select>
         </div>
+      </div>
 
+      <div className="flex justify-end mb-3">
         <Button
           onClick={() => {
             setShowCreate((prev) => !prev);
@@ -197,96 +356,122 @@ export default function TodoList(): React.JSX.Element {
       )}
 
       {/* Todo Items */}
-      <ul className="space-y-4">
-        {paginatedTodos.map((todo) => (
-          <li
-            key={todo.id}
-            className="bg-[#1f2937] hover:bg-[#374151] border border-gray-600 rounded-xl p-5 shadow-md transition-transform transform hover:scale-[1.01]"
-          >
-            <div className="flex flex-col sm:flex-row sm:justify-between gap-4 sm:items-center">
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-1 min-w-0">
-                <Link
-                  to="/todos/$id"
-                  params={{ id: String(todo.id) }}
-                  className="text-lg font-semibold text-blue-200 hover:text-blue-300 truncate max-w-full sm:max-w-[70%] sm:flex-1"
-                >
-                  {todo.title}
-                </Link>
-
-                <span
-                  className={`text-sm px-3 py-1 rounded-full border font-medium inline-flex min-w-fit w-auto self-start ${
-                    todo.completed
-                      ? "text-green-400 border-green-400"
-                      : "text-red-400 border-red-400"
-                  }`}
-                >
-                  {todo.completed ? "✅ Completed" : "❌ Incomplete"}
-                </span>
-              </div>
-
-              <div className="flex gap-3 flex-shrink-0">
-                <Button
-                  onClick={() => {
-                    setEditingTodo(todo);
-                    setShowCreate(false);
-                    setDeleteConfirmTodoId(null);
-                  }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm shadow-sm cursor-pointer"
-                >
-                  <FaEdit />
-                </Button>
-
-                <Button
-                  onClick={() =>
-                    setDeleteConfirmTodoId(
-                      deleteConfirmTodoId === todo.id ? null : todo.id
-                    )
-                  }
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md text-sm shadow-sm cursor-pointer"
-                >
-                  <FaTrash />
-                </Button>
-              </div>
-            </div>
-
-            {/* Inline Edit Form */}
-            {editingTodo?.id === todo.id && (
-              <div className="mt-4 border border-gray-600 p-4 rounded bg-gray-800">
-                <TodoForm
-                  initialTodo={editingTodo}
-                  onSubmit={(todo) =>
-                    updateTodo.mutate({ ...editingTodo, ...todo })
-                  }
-                  onCancel={() => setEditingTodo(null)}
-                />
-              </div>
-            )}
-
-            {/* Delete Confirmation */}
-            {deleteConfirmTodoId === todo.id && (
-              <div className="mt-4 border border-red-500 bg-gray-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
-                <p className="text-red-400 font-semibold">
-                  Are you sure you want to delete this todo?
-                </p>
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => setDeleteConfirmTodoId(null)}
-                    className="bg-gray-600 hover:bg-gray-700 text-white"
+      <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+        <SortableContext
+          items={paginatedTodos.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <ul className="space-y-4">
+            {paginatedTodos.map((todo) => (
+              <SortableItem key={todo.id} todo={todo}>
+                {({ attributes, listeners }) => (
+                  <div
+                    className="bg-[#1f2937] hover:bg-[#374151] border border-gray-600 rounded-xl p-5 shadow-md"
+                    {...attributes}
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => deleteTodo.mutate(todo.id)}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-4 sm:items-center">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:flex-1 min-w-0">
+                        <span
+                          {...listeners}
+                          className="cursor-grab active:cursor-grabbing text-gray-400 mr-2"
+                        >
+                          ☰
+                        </span>
+
+                        <Link
+                          to="/todos/$id"
+                          params={{ id: String(todo.id) }}
+                          className="text-lg font-semibold text-blue-200 hover:text-blue-300 truncate max-w-full sm:max-w-[70%] sm:flex-1"
+                        >
+                          {todo.title}
+                        </Link>
+
+                        <div className="flex gap-2 flex-wrap">
+                          <span className="text-xs px-3 py-1 rounded-full bg-blue-900 text-blue-300 border border-blue-700">
+                            {todo.status ?? (todo.completed ? "done" : "todo")}
+                          </span>
+
+                          <span
+                            className={`text-xs px-3 py-1 rounded-full border ${
+                              (todo.priority ?? "low") === "high"
+                                ? "bg-red-900 text-red-300 border-red-700"
+                                : (todo.priority ?? "low") === "medium"
+                                  ? "bg-yellow-900 text-yellow-300 border-yellow-700"
+                                  : "bg-green-900 text-green-300 border-green-700"
+                            }`}
+                          >
+                            {todo.priority ?? "low"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 flex-shrink-0">
+                        <Button
+                          onClick={() => {
+                            setEditingTodo(todo);
+                            setShowCreate(false);
+                            setDeleteConfirmTodoId(null);
+                          }}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm shadow-sm cursor-pointer"
+                        >
+                          <FaEdit />
+                        </Button>
+
+                        <Button
+                          onClick={() =>
+                            setDeleteConfirmTodoId(
+                              deleteConfirmTodoId === todo.id ? null : todo.id,
+                            )
+                          }
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md text-sm shadow-sm cursor-pointer"
+                        >
+                          <FaTrash />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Inline Edit Form */}
+                    {editingTodo?.id === todo.id && (
+                      <div className="mt-4 border border-gray-600 p-4 rounded bg-gray-800">
+                        <TodoForm
+                          initialTodo={editingTodo}
+                          onSubmit={(todo) =>
+                            updateTodo.mutate({ ...editingTodo, ...todo })
+                          }
+                          onCancel={() => setEditingTodo(null)}
+                        />
+                      </div>
+                    )}
+
+                    {/* Delete Confirmation */}
+                    {deleteConfirmTodoId === todo.id && (
+                      <div className="mt-4 border border-red-500 bg-gray-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <p className="text-red-400 font-semibold">
+                          Are you sure you want to delete this todo?
+                        </p>
+                        <div className="flex gap-3">
+                          <Button
+                            onClick={() => setDeleteConfirmTodoId(null)}
+                            className="bg-gray-600 hover:bg-gray-700 text-white"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => deleteTodo.mutate(todo.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </SortableItem>
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
 
       {/* Pagination */}
       <div className="flex flex-wrap justify-center gap-2 mt-8 text-sm sm:text-base w-full">
@@ -304,7 +489,7 @@ export default function TodoList(): React.JSX.Element {
               totalPages <= 5 ||
               Math.abs(page - currentPage) <= 2 ||
               page === 1 ||
-              page === totalPages
+              page === totalPages,
           )
           .map((page, idx, arr) => {
             const isEllipsis = idx > 0 && page > arr[idx - 1] + 1;
