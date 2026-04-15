@@ -91,7 +91,7 @@ if (rootElement) {
           <RouterProvider router={router} />
         </ErrorBoundary>
       </QueryClientProvider>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 } else {
   console.error("❌ Root element not found");
