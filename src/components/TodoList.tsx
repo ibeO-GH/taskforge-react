@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import TodoForm from "./TodoForm";
-import { db } from "../db/todoDb";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -48,54 +47,48 @@ export default function TodoList(): React.JSX.Element {
   } = useQuery<Todo[]>({
     queryKey: ["todos"],
     queryFn: async () => {
-      const count = await db.todos.count();
+      const res = await fetch("http://localhost:5000/tasks");
+      if (!res.ok) throw new Error("Failed to fetch tasks");
 
-      if (count === 0) {
-        const response = await fetch(
-          "https://jsonplaceholder.typicode.com/todos?_limit=30",
-        );
-        const todosFromApi: Todo[] = await response.json();
+      const data = await res.json();
 
-        const todosToAdd: Todo[] = todosFromApi.map(
-          ({ id, title, completed }, index) => ({
-            id,
-            title,
-            completed,
-            status: completed ? "done" : "todo",
-            priority: "low",
-            createdAt: new Date().toISOString(),
-            order: index,
-          }),
-        );
-
-        await db.todos.bulkAdd(todosToAdd);
-      }
-
-      const allTodos = await db.todos.toArray();
-      return allTodos.sort((a, b) => b.id - a.id);
+      // map backend format to your todo type
+      return data.map((task: any) => ({
+        id: task._id,
+        title: task.title,
+        completed: false,
+        status: task.status || "todo",
+        priority: task.priority || "medium",
+        createdAt: task.createdAt,
+        order: task.order || 0,
+      }));
     },
   });
 
   // ✅ Create Todo
   const createTodo = useMutation({
     mutationFn: async (newTodo: Partial<Omit<Todo, "id">>) => {
-      const id = Date.now();
+      const res = await fetch("http://localhost:5000/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: newTodo.title,
+          status: newTodo.status,
+          priority: newTodo.priority,
+        }),
+      });
 
-      const todo: Todo = {
-        id,
-        title: newTodo.title || "",
-        completed: newTodo.completed ?? false,
-        status: newTodo.status ?? "todo",
-        priority: newTodo.priority ?? "medium",
+      if (!res.ok) throw new Error("Failed to create task");
+      const task = await res.json();
+      return {
+        id: task.id,
+        title: task.text,
+        completed: false,
+        status: "todo",
+        priority: "medium",
         createdAt: new Date().toISOString(),
-        order: -Date.now(),
-
-        description: newTodo.description,
-        dueDate: newTodo.dueDate,
+        order: 0,
       };
-
-      await db.todos.put(todo);
-      return todo;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
@@ -107,7 +100,11 @@ export default function TodoList(): React.JSX.Element {
   // ✅ Delete Todo
   const deleteTodo = useMutation({
     mutationFn: async (id: number) => {
-      await db.todos.delete(id);
+      const res = await fetch(`http://localhost:5000/tasks/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete");
       return id;
     },
     onSuccess: () => {
@@ -119,8 +116,21 @@ export default function TodoList(): React.JSX.Element {
   // ✅ Update Todo
   const updateTodo = useMutation({
     mutationFn: async (data: Todo) => {
-      await db.todos.update(data.id, data);
-      return data;
+      const res = await fetch(`http://localhost:5000/tasks/${data.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: data.title,
+          status: data.status,
+          priority: data.priority,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update");
+
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
@@ -221,7 +231,7 @@ export default function TodoList(): React.JSX.Element {
     });
 
     updatedTodos.forEach((todo) => {
-      db.todos.update(todo.id, { order: todo.order });
+      // db.todos.update(todo.id, { order: todo.order });
     });
 
     queryClient.invalidateQueries({ queryKey: ["todos"] });

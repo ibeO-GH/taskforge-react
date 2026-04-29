@@ -1,14 +1,26 @@
 import { useParams, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { db } from "../db/todoDb";
 import { Button } from "./ui/button";
 import type { Todo } from "../types/todo"; // 👈 adjust this import path if your Todo interface is elsewhere
 
 // Strongly typed fetcher
 const fetchTodo = async (id: string): Promise<Todo> => {
-  const todo = await db.todos.get(Number(id));
-  if (!todo) throw new Error("Todo not found");
-  return todo;
+  const res = await fetch("http://localhost:5000/tasks");
+  const data = await res.json();
+
+  const task = data.find((t: any) => String(t._id) === id);
+
+  if (!task) throw new Error("Todo not found");
+
+  return {
+    id: task._id,
+    title: task.title,
+    completed: false,
+    status: task.status,
+    priority: task.priority,
+    createdAt: task.createdAt,
+    order: task.order || 0,
+  };
 };
 
 export default function TodoDetail() {
