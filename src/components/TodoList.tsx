@@ -81,13 +81,13 @@ export default function TodoList(): React.JSX.Element {
       if (!res.ok) throw new Error("Failed to create task");
       const task = await res.json();
       return {
-        id: task.id,
-        title: task.text,
+        id: task._id,
+        title: task.title,
         completed: false,
-        status: "todo",
-        priority: "medium",
-        createdAt: new Date().toISOString(),
-        order: 0,
+        status: task.status,
+        priority: task.priority,
+        createdAt: task.createdAt,
+        order: task.order,
       };
     },
     onSuccess: () => {
@@ -176,17 +176,13 @@ export default function TodoList(): React.JSX.Element {
     return priority === "high";
   }).length;
 
-  const [sortBy, setSortBy] = useState<
-    "manual" | "newest" | "oldest" | "priority"
-  >("manual");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "priority">(
+    "newest",
+  );
 
   const totalPages = Math.ceil(filteredTodos.length / todosPerPage);
 
   const sortedTodos = [...filteredTodos].sort((a, b) => {
-    if (sortBy === "manual") {
-      return (a.order ?? 0) - (b.order ?? 0);
-    }
-
     if (sortBy === "newest") {
       return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
     }
@@ -209,8 +205,7 @@ export default function TodoList(): React.JSX.Element {
     currentPage * todosPerPage,
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    if (sortBy !== "manual") return;
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (!over || active.id === over.id) return;
@@ -230,11 +225,24 @@ export default function TodoList(): React.JSX.Element {
       };
     });
 
-    updatedTodos.forEach((todo) => {
-      // db.todos.update(todo.id, { order: todo.order });
-    });
+    try {
+      await fetch("http://localhost:5000/tasks/reorder", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          updatedTodos.map((todo) => ({
+            id: todo.id,
+            order: todo.order,
+          })),
+        ),
+      });
 
-    queryClient.invalidateQueries({ queryKey: ["todos"] });
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    } catch (err) {
+      console.error("Reorder failed", err);
+    }
   };
 
   // ✅ Loading / Error states
@@ -327,7 +335,6 @@ export default function TodoList(): React.JSX.Element {
               <SelectValue placeholder="sort" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="manual">Manual (Drag)</SelectItem>
               <SelectItem value="newest">Newest</SelectItem>
               <SelectItem value="oldest">Oldest</SelectItem>
               <SelectItem value="priority">Priority</SelectItem>
@@ -366,7 +373,7 @@ export default function TodoList(): React.JSX.Element {
       )}
 
       {/* Todo Items */}
-      <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+      <DndContext collisionDetection={closestCenter}>
         <SortableContext
           items={paginatedTodos.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
@@ -374,20 +381,13 @@ export default function TodoList(): React.JSX.Element {
           <ul className="space-y-4">
             {paginatedTodos.map((todo) => (
               <SortableItem key={todo.id} todo={todo}>
-                {({ attributes, listeners }) => (
+                {({ attributes }) => (
                   <div
                     className="bg-[#1f2937] hover:bg-[#374151] border border-gray-600 rounded-xl p-5 shadow-md"
                     {...attributes}
                   >
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-4 sm:items-center">
                       <div className="flex flex-col sm:flex-row gap-2 sm:flex-1 min-w-0">
-                        <span
-                          {...listeners}
-                          className="cursor-grab active:cursor-grabbing text-gray-400 mr-2"
-                        >
-                          ☰
-                        </span>
-
                         <Link
                           to="/todos/$id"
                           params={{ id: String(todo.id) }}
