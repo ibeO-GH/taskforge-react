@@ -47,7 +47,7 @@ export default function TodoList(): React.JSX.Element {
   } = useQuery<Todo[]>({
     queryKey: ["todos"],
     queryFn: async () => {
-      const res = await fetch("http://localhost:5000/tasks");
+      const res = await fetch("https://taskforge-api-z21d.onrender.com/tasks");
       if (!res.ok) throw new Error("Failed to fetch tasks");
 
       const data = await res.json();
@@ -68,7 +68,7 @@ export default function TodoList(): React.JSX.Element {
   // ✅ Create Todo
   const createTodo = useMutation({
     mutationFn: async (newTodo: Partial<Omit<Todo, "id">>) => {
-      const res = await fetch("http://localhost:5000/tasks", {
+      const res = await fetch("https://taskforge-api-z21d.onrender.com/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -100,9 +100,12 @@ export default function TodoList(): React.JSX.Element {
   // ✅ Delete Todo
   const deleteTodo = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`http://localhost:5000/tasks/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `https://taskforge-api-z21d.onrender.com/tasks/${id}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       if (!res.ok) throw new Error("Failed to delete");
       return id;
@@ -116,17 +119,20 @@ export default function TodoList(): React.JSX.Element {
   // ✅ Update Todo
   const updateTodo = useMutation({
     mutationFn: async (data: Todo) => {
-      const res = await fetch(`http://localhost:5000/tasks/${data.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `https://taskforge-api-z21d.onrender.com/tasks/${data.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: data.title,
+            status: data.status,
+            priority: data.priority,
+          }),
         },
-        body: JSON.stringify({
-          title: data.title,
-          status: data.status,
-          priority: data.priority,
-        }),
-      });
+      );
 
       if (!res.ok) throw new Error("Failed to update");
 
@@ -226,7 +232,7 @@ export default function TodoList(): React.JSX.Element {
     });
 
     try {
-      await fetch("http://localhost:5000/tasks/reorder", {
+      await fetch("https://taskforge-api-z21d.onrender.com/tasks/reorder", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

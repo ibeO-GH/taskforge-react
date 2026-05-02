@@ -1,11 +1,10 @@
 import { useParams, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "./ui/button";
-import type { Todo } from "../types/todo"; // 👈 adjust this import path if your Todo interface is elsewhere
+import type { Todo } from "../types/todo";
 
-// Strongly typed fetcher
 const fetchTodo = async (id: string): Promise<Todo> => {
-  const res = await fetch("http://localhost:5000/tasks");
+  const res = await fetch("https://taskforge-api-z21d.onrender.com/tasks");
   const data = await res.json();
 
   const task = data.find((t: any) => String(t._id) === id);
