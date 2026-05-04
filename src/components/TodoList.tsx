@@ -148,7 +148,7 @@ export default function TodoList(): React.JSX.Element {
   const todosPerPage = 10;
 
   const filteredTodos = todos.filter((todo) => {
-    const matchesSearch = todo.title
+    const matchesSearch = (todo.title || "")
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
 
