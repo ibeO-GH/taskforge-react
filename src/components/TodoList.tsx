@@ -54,7 +54,7 @@ export default function TodoList(): React.JSX.Element {
 
       // map backend format to your todo type
       return data.map((task: any) => ({
-        id: task._id,
+        id: task.id || task._id,
         title: task.title,
         completed: false,
         status: task.status || "todo",
@@ -72,7 +72,7 @@ export default function TodoList(): React.JSX.Element {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: newTodo.title,
+          title: newTodo.title,
           status: newTodo.status,
           priority: newTodo.priority,
         }),
@@ -148,7 +148,7 @@ export default function TodoList(): React.JSX.Element {
   const todosPerPage = 10;
 
   const filteredTodos = todos.filter((todo) => {
-    const matchesSearch = (todo.title || "")
+    const matchesSearch = (todo.title ?? "")
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
 
